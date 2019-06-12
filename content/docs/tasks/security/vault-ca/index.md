@@ -106,8 +106,8 @@ certificate signing requests to Vault.
     To learn more about configuring a Vault CA for Kubernetes authentication and authorization,
     visit the [Vault Kubernetes `auth` method reference documentation](https://www.vaultproject.io/docs/auth/kubernetes.html).
     The example Kubernetes service account used here has been configured for authentication and authorization
-    on the testing Vault server. Please refer to the [Appendix](#appendix) for more details on configuring
-    an example basic Vault to authenticate and authorize a Kubernetes service account.
+    on the testing Vault server. The [Appendix](#appendix) includes an example to
+    configure a basic Vault server to authenticate and authorize a Kubernetes service account.
 
     {{< text bash >}}
     $ export SA_SECRET_NAME=$(kubectl get serviceaccount vault-citadel-sa -o=jsonpath='{.secrets[0].name}')
@@ -171,8 +171,10 @@ to securely configure your Vault servers.** The instructions are based on the
 post [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/) and
 [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html).
 
-1.  Follow [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/)
-    to install Vault, initialize Vault, and unseal Vault.
+1.  Create a Kubernetes cluster to host an example basic Vault server.
+    In the Kubernetes cluster created, install, initialize, and unseal Vault.
+    Examples of install, initialize, and unseal Vault can be found in
+    [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/)
     The example Vault server in this guide is of 0.10.3 version.
     
 1.  Follow [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html)
@@ -232,16 +234,16 @@ post [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/) and
         ttl=10h
     {{< /text >}}
 
-1.  Create a PKI secret engine for a demo CA and configure its private key and certificate.
-    The `pem_bundle` is a file containing the private key and certificate of the demo CA.
+1.  Create a PKI secret engine for the example Vault CA and configure its private key and certificate.
+    The `pem_bundle` is a file containing the private key and certificate of the example Vault CA.
     An example `pem_bundle` can be found [here](https://www.terraform.io/docs/providers/vault/r/pki_secret_backend_config_ca.html).
     
     {{< text bash >}}
-    $ vault secrets enable -path=istio_ca -description="A Demo CA" pki
-    $ vault write istio_ca/config/ca pem_bundle=<the-file-storing-private-key-and-certificate-of-the-demo-CA>
+    $ vault secrets enable -path=istio_ca -description="An example Vault CA" pki
+    $ vault write istio_ca/config/ca pem_bundle=<the-file-storing-private-key-and-certificate-of-the-example-Vault-CA>
     {{< /text >}}
     
-1. Create a role in the demo CA.
+1. Create a role in the example Vault CA.
 
     {{< text bash >}}
     $ vault write istio_ca/roles/istio-pki-role allow_any_name=true require_cn=false \
@@ -261,8 +263,22 @@ post [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/) and
     $ sign the CSR at Vault
     {{< /text >}}
     
-1.  If you like to sign a CSR in Istio at the demo Vault CA, you may edit the yaml
-    file [`values-istio-example-sds-vault.yaml`]({{< github_file >}}/install/kubernetes/helm/istio/example-values/values-istio-example-sds-vault.yaml)
-    to set the address of CA provider and Vault to that of the demo Vault,
-    redeploy Istio, and edit the secret of the `vault-citadel-sa` service account to use
-    the `default` Kubernetes service account that has been configured on the demo Vault.
+1.  If you like to sign a CSR at the example Vault CA,
+    save to a file the token of the `default` Kubernetes service account that has been configured on the example Vault.
+    The following command saves the `default` Kubernetes service account to a file `default-service-account.yaml`.
+
+    {{< text bash >}}
+    $ kubectl get secret $(kubectl get serviceaccount default -o=jsonpath='{.secrets[0].name}') -o yaml > default-service-account.yaml
+    {{< /text >}}   
+
+    Create a [Kubernetes service](https://kubernetes.io/docs/concepts/services-networking/service/) to expose
+    the example Vault CA,
+    e.g., [the link](https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/)
+    contains instructions to expose a service through a load balancer.
+    Edit the yaml file [`values-istio-example-sds-vault.yaml`]({{< github_file >}}/install/kubernetes/helm/istio/example-values/values-istio-example-sds-vault.yaml)
+    to set the address of CA provider and Vault to be the address of the example Vault CA.
+    
+    After that, similar to the steps at the beginning of this guide,
+    deploy Istio, edit the secret of the `vault-citadel-sa` service account to use
+    the `default` Kubernetes service account that has been configured on the example Vault,
+    and deploy the `httpbin` and `sleep` backends.
