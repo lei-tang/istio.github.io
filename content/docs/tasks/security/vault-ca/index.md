@@ -156,30 +156,32 @@ After completing this tutorial, you may delete the testing cluster created
 at the beginning of this tutorial.
 
 ## Appendix
-When signing a CSR, Istio Citadel Agent sends the CSR and a Kubernetes service account to
-your Vault server, which authenticate and authorize the request based on the
+
+Vault servers are hosted and managed by their owners. When signing a CSR, Istio Citadel Agent
+sends the CSR and a Kubernetes service account to your Vault server,
+which authenticate and authorize the request based on the
 [Vault Kubernetes `auth` method](https://www.vaultproject.io/docs/auth/kubernetes.html) and
 returns the signed certificate to Istio Citadel Agent, if the request is authorized.
-According to their security requirements, owners of Vault servers may configure different authentication,
-authorization, and certificate issuance policies for a Kubernetes service account and CSR.
+Based on their security requirements, owners of Vault servers may configure various authentication,
+authorization, and certificate issuance policies for Kubernetes service accounts and certificate
+signing requests.
 
 The following instructions configure an example basic Vault to authenticate and authorize a CSR
 based on the Vault Kubernetes auth method.
-.
 **The instructions here are for illustrative purposes only. Please consult with security experts
-to securely configure your Vault servers.** The instructions are based on the
+on the security configuration of your Vault servers.** The instructions are based on the
 post [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/) and
 [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html).
 
 1.  Create a Kubernetes cluster to host an example basic Vault server.
-    In the Kubernetes cluster created, install, initialize, and unseal Vault.
-    Examples of install, initialize, and unseal Vault can be found in
-    [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/)
-    The example Vault server in this guide is of 0.10.3 version.
-    
-1.  Follow [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html)
-    to set up Kubernetes service account for Vault token review. 
-    
+    In the Kubernetes cluster created, install, initialize, unseal, and login Vault.
+    Examples of install, initialize, unseal, and login Vault can be found in the post
+    [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/).
+    The example Vault server used in this guide is of 0.10.3 version.
+
+1.  Follow the post [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html)
+    to set up a Kubernetes service account for Vault token review.
+
     {{< text bash >}}
     $ kubectl create serviceaccount vault-tokenreview
     $ kubectl apply -f - <<EOF
@@ -201,20 +203,20 @@ post [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/) and
     $ TR_ACCOUNT_TOKEN=$(kubectl get secret ${SECRET_NAME} -o jsonpath='{.data.token}' | base64 --decode)
     {{< /text >}}
 
-1.  Follow [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html)
+1.  Follow the post [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html)
     to enable and configure the Vault Kubernetes Auth method. The parameters `kubernetes_host`
     and `kubernetes_ca_cert` are described in the
     [Vault API document](https://www.vaultproject.io/api/auth/kubernetes/index.html#kubernetes_host).
-    
+
     {{< text bash >}}
     $ vault auth enable kubernetes
     $ vault write auth/kubernetes/config kubernetes_host=<your-kubernetes-host> \
         kubernetes_ca_cert=<your-kubernetes-ca-cert> token_reviewer_jwt=$TR_ACCOUNT_TOKEN
     {{< /text >}}
 
-1.  Follow [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html)
-    to create a new Vault policy and role bound to the `default` service account.
-    
+1.  Follow the post [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html)
+    to create a Vault policy and a role bound to the `default` service account.
+
     {{< text bash >}}
     $ cat <<EOF > ./policy.hcl
     {
@@ -235,50 +237,41 @@ post [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/) and
     {{< /text >}}
 
 1.  Create a PKI secret engine for the example Vault CA and configure its private key and certificate.
-    The `pem_bundle` is a file containing the private key and certificate of the example Vault CA.
+    The `pem_bundle` is a file containing the private key and certificate created by you for the example Vault CA.
     An example `pem_bundle` can be found [here](https://www.terraform.io/docs/providers/vault/r/pki_secret_backend_config_ca.html).
-    
+    An example of creating CA certificate and key can be found in
+    the post [1](https://evalle.xyz/posts/integration-kubernetes-with-vault-auth/).
+
     {{< text bash >}}
     $ vault secrets enable -path=istio_ca -description="An example Vault CA" pki
     $ vault write istio_ca/config/ca pem_bundle=<the-file-storing-private-key-and-certificate-of-the-example-Vault-CA>
     {{< /text >}}
-    
+
 1. Create a role in the example Vault CA.
 
     {{< text bash >}}
     $ vault write istio_ca/roles/istio-pki-role allow_any_name=true require_cn=false \
         allowed_uri_sans="*" use_csr_sans=true basic_constraints_valid_for_non_ca=true \
-        key_usage="DigitalSignature","KeyEncipherment"    
+        key_usage="DigitalSignature","KeyEncipherment"
     {{< /text >}}
-    
-1.  Follow guide [2](https://coreos.com/tectonic/docs/latest/vault-operator/user/kubernetes-auth-backend.html)
-    to authenticate to Vault through the `default` Kubernetes service account and sign a CSR.
 
-    {{< text bash >}}
-    $ SECRET_NAME=$(kubectl get serviceaccount default -o jsonpath='{.secrets[0].name}')
-    $ DEFAULT_ACCOUNT_TOKEN=$(kubectl get secret ${SECRET_NAME} -o jsonpath='{.data.token}' | base64 --decode)
-    $ vault write auth/kubernetes/login role=istio-cert jwt=${DEFAULT_ACCOUNT_TOKEN}
-    $ export VAULT_TOKEN=<the value of the key token from the output of the last step>
-    $ generate <your-csr-to-sign>
-    $ sign the CSR at Vault
-    {{< /text >}}
-    
 1.  If you like to sign a CSR at the example Vault CA,
     save to a file the token of the `default` Kubernetes service account that has been configured on the example Vault.
     The following command saves the `default` Kubernetes service account to a file `default-service-account.yaml`.
 
     {{< text bash >}}
     $ kubectl get secret $(kubectl get serviceaccount default -o=jsonpath='{.secrets[0].name}') -o yaml > default-service-account.yaml
-    {{< /text >}}   
+    {{< /text >}}
 
     Create a [Kubernetes service](https://kubernetes.io/docs/concepts/services-networking/service/) to expose
-    the example Vault CA,
+    your example Vault CA,
     e.g., [the link](https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/)
-    contains instructions to expose a service through a load balancer.
+    contains instructions to expose your application through a load balancer.
     Edit the yaml file [`values-istio-example-sds-vault.yaml`]({{< github_file >}}/install/kubernetes/helm/istio/example-values/values-istio-example-sds-vault.yaml)
-    to set the address of CA provider and Vault to be the address of the example Vault CA.
-    
+    to set the address of CA provider and Vault to be the address of your example Vault CA, and set
+    the TLS root certificate of your example Vault CA.
+
     After that, similar to the steps at the beginning of this guide,
     deploy Istio, edit the secret of the `vault-citadel-sa` service account to use
-    the `default` Kubernetes service account that has been configured on the example Vault,
+    the `default` Kubernetes service account that has been configured on your example Vault,
     and deploy the `httpbin` and `sleep` backends.
