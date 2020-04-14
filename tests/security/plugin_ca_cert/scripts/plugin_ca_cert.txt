@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+# Copyright Istio Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -e
+set -u
+set -o pipefail
+
+# Disable errors, since the next command is expected to return an error
+# due to using a self-signed certificate.
+set +e
+set +o pipefail
+
+# $snippet get_certs_of_httpbin syntax="bash" outputis="text"
+$ kubectl exec $(kubectl get pod -l app=sleep -n foo -o jsonpath={.items..metadata.name}) -c istio-proxy -n foo -- openssl s_client -showcerts -connect httpbin.foo:8000 > httpbin-proxy-cert.txt
+# $endsnippet
+
+# Restore error handling
+set -e
+set -o pipefail
+
+# $snippet split_certs_of_httpbin syntax="bash" outputis="text"
+$ sed -n '/-----BEGIN CERTIFICATE-----/{:start /-----END CERTIFICATE-----/!{N;b start};/.*/p}' httpbin-proxy-cert.txt > certs.pem
+$ csplit -f proxy-cert- certs.pem '/-----BEGIN CERTIFICATE-----/' {1}
+# $endsnippet
+
+# $snippet verify_root_cert syntax="bash" outputis="text"
+$ openssl x509 -in samples/certs/root-cert.pem -text -noout > /tmp/root-cert.crt.txt
+$ openssl x509 -in ./proxy-cert-02 -text -noout > /tmp/pod-root-cert.crt.txt
+$ diff /tmp/root-cert.crt.txt /tmp/pod-root-cert.crt.txt
+# $verify
+Files /tmp/root-cert.crt.txt and /tmp/pod-root-cert.crt.txt are identical
+# $endsnippet
+
+# $snippet verify_ca_cert syntax="bash" outputis="text"
+$ openssl x509 -in samples/certs/ca-cert.pem -text -noout > /tmp/ca-cert.crt.txt
+$ openssl x509 -in ./proxy-cert-01 -text -noout > /tmp/pod-cert-chain-ca.crt.txt
+$ diff /tmp/ca-cert.crt.txt /tmp/pod-cert-chain-ca.crt.txt
+# $verify
+Files /tmp/ca-cert.crt.txt and /tmp/pod-cert-chain-ca.crt.txt are identical
+# $endsnippet
+
+# $snippet verify_workload_cert syntax="bash" outputis="text"
+$ openssl verify -CAfile <(cat samples/certs/ca-cert.pem samples/certs/root-cert.pem) ./cert-00
+# $verify
+./proxy-cert-00: OK
+# $endsnippet
