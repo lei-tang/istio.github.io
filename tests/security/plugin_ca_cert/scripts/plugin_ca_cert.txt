@@ -40,10 +40,6 @@ set +o pipefail
 $ kubectl exec $(kubectl get pod -l app=sleep -n foo -o jsonpath={.items..metadata.name}) -c istio-proxy -n foo -- openssl s_client -showcerts -connect httpbin.foo:8000 > httpbin-proxy-cert.txt
 # $endsnippet
 
-# Restore error handling
-set -e
-set -o pipefail
-
 # $snippet split_certs_of_httpbin syntax="bash" outputis="text"
 $ sed -n '/-----BEGIN CERTIFICATE-----/{:start /-----END CERTIFICATE-----/!{N;b start};/.*/p}' httpbin-proxy-cert.txt > certs.pem
 $ csplit -f proxy-cert- certs.pem '/-----BEGIN CERTIFICATE-----/' {1}
@@ -70,3 +66,7 @@ $ openssl verify -CAfile <(cat samples/certs/ca-cert.pem samples/certs/root-cert
 # $verify
 ./proxy-cert-00: OK
 # $endsnippet
+
+# Restore error handling
+set -e
+set -o pipefail
