@@ -18,6 +18,19 @@ set -e
 set -u
 set -o pipefail
 
+# $snippet configure_mtls_foo_peerauthentication syntax="bash"
+$ kubectl apply -n foo -f - <<EOF
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  name: "default"
+spec:
+  mtls:
+    mode: STRICT
+EOF
+$ sleep 15
+# $endsnippet
+
 # Disable errors, since the next command is expected to return an error
 # due to using a self-signed certificate.
 set +e
