@@ -49,15 +49,15 @@ $ kubectl apply -f <(istioctl kube-inject -f @samples/sleep/sleep.yaml@) -n foo
 			Add(istioio.Script{
 				Input: istioio.Path("scripts/plugin_ca_cert.txt"),
 			}).
-			// Cleanup.
-			Defer(istioio.Script{
-				Input: istioio.Inline{
-					FileName: "cleanup.sh",
-					Value: `
-# $snippet cleanup.sh syntax="bash" outputis="text"
-$ kubectl delete ns foo
-# $endsnippet`,
-				},
-			}).
+//			// Cleanup.
+//			Defer(istioio.Script{
+//				Input: istioio.Inline{
+//					FileName: "cleanup.sh",
+//					Value: `
+//# $snippet cleanup.sh syntax="bash" outputis="text"
+//$ kubectl delete ns foo
+//# $endsnippet`,
+//				},
+//			}).
 			Build())
 }
